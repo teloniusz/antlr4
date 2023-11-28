@@ -21,6 +21,7 @@ public class UnicodeEscapes {
 		switch (language) {
 			case "CSharp":
 			case "Python3":
+			case "Python310":
 			case "Cpp":
 			case "Go":
 			case "PHP":
