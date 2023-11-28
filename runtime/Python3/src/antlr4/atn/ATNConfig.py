@@ -12,13 +12,13 @@
 #  an ATN state.
 #/
 from io import StringIO
+import typing as t
+
 from antlr4.PredictionContext import PredictionContext
 from antlr4.atn.ATNState import ATNState, DecisionState
 from antlr4.atn.LexerActionExecutor import LexerActionExecutor
 from antlr4.atn.SemanticContext import SemanticContext
 
-# need a forward declaration
-ATNConfig = None
 
 class ATNConfig(object):
     __slots__ = (
@@ -26,7 +26,9 @@ class ATNConfig(object):
         'precedenceFilterSuppressed'
     )
 
-    def __init__(self, state:ATNState=None, alt:int=None, context:PredictionContext=None, semantic:SemanticContext=None, config:ATNConfig=None):
+    def __init__(self, state: t.Optional[ATNState] = None, alt: t.Optional[int] = None,
+                 context: t.Optional[PredictionContext] = None, semantic: t.Optional[SemanticContext] = None,
+                 config: t.Optional['ATNConfig'] = None):
         if config is not None:
             if state is None:
                 state = config.state
@@ -39,14 +41,14 @@ class ATNConfig(object):
         if semantic is None:
             semantic = SemanticContext.NONE
         # The ATN state associated with this configuration#/
-        self.state = state
+        self.state: t.Optional[ATNState] = state
         # What alt (or lexer rule) is predicted by this configuration#/
-        self.alt = alt
+        self.alt: t.Optional[int] = alt
         # The stack of invoking states leading to the rule/states associated
         #  with this config.  We track only those contexts pushed during
         #  execution of the ATN simulator.
-        self.context = context
-        self.semanticContext = semantic
+        self.context: t.Optional[PredictionContext] = context
+        self.semanticContext: t.Optional[SemanticContext] = semantic
         # We cannot execute predicates dependent upon local context unless
         # we know for sure we are in the correct context. Because there is
         # no way to do this efficiently, we simply cannot evaluate
@@ -63,14 +65,14 @@ class ATNConfig(object):
     #  the same state, they predict the same alternative, and
     #  syntactic/semantic contexts are the same.
     #/
-    def __eq__(self, other):
+    def __eq__(self, other: t.Any):
         if self is other:
             return True
         elif not isinstance(other, ATNConfig):
             return False
         else:
-            return self.state.stateNumber==other.state.stateNumber \
-                and self.alt==other.alt \
+            return self.state.stateNumber == other.state.stateNumber \
+                and self.alt == other.alt \
                 and ((self.context is other.context) or (self.context==other.context)) \
                 and self.semanticContext==other.semanticContext \
                 and self.precedenceFilterSuppressed==other.precedenceFilterSuppressed
@@ -81,15 +83,15 @@ class ATNConfig(object):
     def hashCodeForConfigSet(self):
         return hash((self.state.stateNumber, self.alt, hash(self.semanticContext)))
 
-    def equalsForConfigSet(self, other):
+    def equalsForConfigSet(self, other: t.Any):
         if self is other:
             return True
         elif not isinstance(other, ATNConfig):
             return False
         else:
-            return self.state.stateNumber==other.state.stateNumber \
-                and self.alt==other.alt \
-                and self.semanticContext==other.semanticContext
+            return self.state.stateNumber == other.state.stateNumber \
+                and self.alt == other.alt \
+                and self.semanticContext == other.semanticContext
 
     def __str__(self):
         with StringIO() as buf:
@@ -110,28 +112,27 @@ class ATNConfig(object):
             buf.write(')')
             return buf.getvalue()
 
-# need a forward declaration
-LexerATNConfig = None
 
 class LexerATNConfig(ATNConfig):
     __slots__ = ('lexerActionExecutor', 'passedThroughNonGreedyDecision')
 
-    def __init__(self, state:ATNState, alt:int=None, context:PredictionContext=None, semantic:SemanticContext=SemanticContext.NONE,
-                 lexerActionExecutor:LexerActionExecutor=None, config:LexerATNConfig=None):
+    def __init__(self, state: ATNState, alt: t.Optional[int] = None, context: t.Optional[PredictionContext] = None,
+                 semantic: t.Optional[SemanticContext] = SemanticContext.NONE,
+                 lexerActionExecutor: t.Optional[LexerActionExecutor] = None, config: t.Optional['LexerATNConfig'] = None):
         super().__init__(state=state, alt=alt, context=context, semantic=semantic, config=config)
         if config is not None:
             if lexerActionExecutor is None:
                 lexerActionExecutor = config.lexerActionExecutor
         # This is the backing field for {@link #getLexerActionExecutor}.
-        self.lexerActionExecutor = lexerActionExecutor
-        self.passedThroughNonGreedyDecision = False if config is None else self.checkNonGreedyDecision(config, state)
+        self.lexerActionExecutor: t.Optional[LexerActionExecutor] = lexerActionExecutor
+        self.passedThroughNonGreedyDecision: bool = False if config is None else self.checkNonGreedyDecision(config, state)
 
     def __hash__(self):
         return hash((self.state.stateNumber, self.alt, self.context,
                 self.semanticContext, self.passedThroughNonGreedyDecision,
                 self.lexerActionExecutor))
 
-    def __eq__(self, other):
+    def __eq__(self, other: t.Any):
         if self is other:
             return True
         elif not isinstance(other, LexerATNConfig):
@@ -142,18 +143,12 @@ class LexerATNConfig(ATNConfig):
             return False
         return super().__eq__(other)
 
-
-
     def hashCodeForConfigSet(self):
         return hash(self)
 
+    def equalsForConfigSet(self, other: t.Any):
+        return self == other
 
-
-    def equalsForConfigSet(self, other):
-        return self==other
-
-
-
-    def checkNonGreedyDecision(self, source:LexerATNConfig, target:ATNState):
+    def checkNonGreedyDecision(self, source: 'LexerATNConfig', target: ATNState):
         return source.passedThroughNonGreedyDecision \
             or isinstance(target, DecisionState) and target.nonGreedy

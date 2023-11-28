@@ -23,8 +23,10 @@ from antlr4.Token import Token
 from antlr4.error.Errors import IllegalStateException, LexerNoViableAltException, RecognitionException
 
 class TokenSource(object):
-
-    pass
+    line: int
+    column: int
+    text: str
+    type: int
 
 
 class Lexer(Recognizer, TokenSource):
@@ -43,7 +45,7 @@ class Lexer(Recognizer, TokenSource):
     MIN_CHAR_VALUE = 0x0000
     MAX_CHAR_VALUE = 0x10FFFF
 
-    def __init__(self, input:InputStream, output:TextIO = sys.stdout):
+    def __init__(self, input: InputStream, output: TextIO = sys.stdout):
         super().__init__()
         self._input = input
         self._output = output

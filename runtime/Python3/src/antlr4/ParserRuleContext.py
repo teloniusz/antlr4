@@ -25,17 +25,23 @@
 #  group values such as this aggregate.  The getters/setters are there to
 #  satisfy the superclass interface.
 
+import typing as t
+
 from antlr4.RuleContext import RuleContext
 from antlr4.Token import Token
 from antlr4.tree.Tree import ParseTreeListener, ParseTree, TerminalNodeImpl, ErrorNodeImpl, TerminalNode, \
     INVALID_INTERVAL
 
-# need forward declaration
-ParserRuleContext = None
+if t.TYPE_CHECKING:
+    from antlr4 import RecognitionException
+
+_T = t.TypeVar('_T')
+_P = t.TypeVar('_P', bound=ParseTree)
+
 
 class ParserRuleContext(RuleContext):
     __slots__ = ('children', 'start', 'stop', 'exception')
-    def __init__(self, parent:ParserRuleContext = None, invokingStateNumber:int = None ):
+    def __init__(self, parent: t.Optional['ParserRuleContext'] = None, invokingStateNumber: int = -1):
         super().__init__(parent, invokingStateNumber)
         #* If we are debugging or building a parse tree for a visitor,
         #  we need to track all of the tokens and rule invocations associated
@@ -43,12 +49,12 @@ class ParserRuleContext(RuleContext):
         #  operation because we don't the need to track the details about
         #  how we parse this rule.
         #/
-        self.children = None
-        self.start = None
-        self.stop = None
+        self.children: t.Optional[t.List[ParseTree]] = None
+        self.start: t.Optional[Token] = None
+        self.stop: t.Optional[Token] = None
         # The exception that forced this rule to return. If the rule successfully
         # completed, this is {@code null}.
-        self.exception = None
+        self.exception: t.Optional['RecognitionException'] = None
 
     #* COPY a ctx (I'm deliberately not using copy constructor)#/
     #
@@ -60,10 +66,10 @@ class ParserRuleContext(RuleContext):
     # to the generic XContext so this function must copy those nodes to
     # the YContext as well else they are lost!
     #/
-    def copyFrom(self, ctx:ParserRuleContext):
+    def copyFrom(self, ctx: 'ParserRuleContext'):
         # from RuleContext
-        self.parentCtx = ctx.parentCtx
-        self.invokingState = ctx.invokingState
+        self.parentCtx: t.Optional[RuleContext] = ctx.parentCtx
+        self.invokingState: t.Optional[RuleContext] = ctx.invokingState
         self.children = None
         self.start = ctx.start
         self.stop = ctx.stop
@@ -78,14 +84,14 @@ class ParserRuleContext(RuleContext):
                     child.parentCtx = self
 
     # Double dispatch methods for listeners
-    def enterRule(self, listener:ParseTreeListener):
+    def enterRule(self, listener: ParseTreeListener):
         pass
 
-    def exitRule(self, listener:ParseTreeListener):
+    def exitRule(self, listener: ParseTreeListener):
         pass
 
     #* Does not set parent link; other add methods do that#/
-    def addChild(self, child:ParseTree):
+    def addChild(self, child: ParseTree):
         if self.children is None:
             self.children = []
         self.children.append(child)
@@ -97,74 +103,76 @@ class ParserRuleContext(RuleContext):
     #/
     def removeLastChild(self):
         if self.children is not None:
-            del self.children[len(self.children)-1]
+            del self.children[len(self.children) - 1]
 
-    def addTokenNode(self, token:Token):
+    def addTokenNode(self, token: Token):
         node = TerminalNodeImpl(token)
         self.addChild(node)
         node.parentCtx = self
         return node
 
-    def addErrorNode(self, badToken:Token):
+    def addErrorNode(self, badToken: Token):
         node = ErrorNodeImpl(badToken)
         self.addChild(node)
         node.parentCtx = self
         return node
 
-    def getChild(self, i:int, ttype:type = None):
+    @t.overload
+    def getChild(self, i: int, ttype: t.Type[_P]) -> t.Optional[_P]: ...
+    @t.overload
+    def getChild(self, i: int, ttype: None) -> t.Optional[ParseTree]: ...
+    @t.overload
+    def getChild(self, i: int) -> t.Optional[ParseTree]: ...
+    def getChild(self, i: int, ttype: t.Optional[t.Type[_T]] = None) -> t.Union[None, _T, ParseTree]:
+        assert self.children
         if ttype is None:
-            return self.children[i] if len(self.children)>i else None
+            return self.children[i] if len(self.children) > i else None
         else:
             for child in self.getChildren():
                 if not isinstance(child, ttype):
                     continue
-                if i==0:
+                if i == 0:
                     return child
                 i -= 1
             return None
 
-    def getChildren(self, predicate = None):
+    def getChildren(self, predicate: t.Optional[t.Callable[[ParseTree], bool]] = None):
         if self.children is not None:
             for child in self.children:
                 if predicate is not None and not predicate(child):
                     continue
                 yield child
 
-    def getToken(self, ttype:int, i:int):
+    def getToken(self, ttype: int, i: int):
         for child in self.getChildren():
             if not isinstance(child, TerminalNode):
                 continue
-            if child.symbol.type != ttype:
+            if not child.symbol or child.symbol.type != ttype:
                 continue
-            if i==0:
+            if i == 0:
                 return child
             i -= 1
         return None
 
-    def getTokens(self, ttype:int ):
-        if self.getChildren() is None:
-            return []
-        tokens = []
-        for child in self.getChildren():
-            if not isinstance(child, TerminalNode):
-                continue
-            if child.symbol.type != ttype:
-                continue
-            tokens.append(child)
+    def getTokens(self, ttype: int):
+        tokens = [
+            child
+            for child in self.getChildren()
+            if isinstance(child, TerminalNode) and child.symbol and child.symbol.type == ttype
+        ]
         return tokens
 
-    def getTypedRuleContext(self, ctxType:type, i:int):
-        return self.getChild(i, ctxType)
+    def getTypedRuleContext(self, ctxType: t.Type[_P], i: int) -> t.Optional[_P]:
+        child = self.getChild(i, ctxType)
+        return child
 
-    def getTypedRuleContexts(self, ctxType:type):
+    def getTypedRuleContexts(self, ctxType: t.Type[_P]) -> t.List[_P]:
         children = self.getChildren()
-        if children is None:
-            return []
-        contexts = []
-        for child in children:
-            if not isinstance(child, ctxType):
-                continue
-            contexts.append(child)
+        contexts = [
+            child
+            for child in children
+            if isinstance(child, ctxType)
+        ]
         return contexts
 
     def getChildCount(self):
@@ -180,7 +188,6 @@ class ParserRuleContext(RuleContext):
 RuleContext.EMPTY = ParserRuleContext()
 
 class InterpreterRuleContext(ParserRuleContext):
-
-    def __init__(self, parent:ParserRuleContext, invokingStateNumber:int, ruleIndex:int):
+    def __init__(self, parent: ParserRuleContext, invokingStateNumber: int, ruleIndex: int):
         super().__init__(parent, invokingStateNumber)
         self.ruleIndex = ruleIndex

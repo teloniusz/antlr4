@@ -25,18 +25,20 @@
 #  @see ParserRuleContext
 #/
 from io import StringIO
-from antlr4.tree.Tree import RuleNode, INVALID_INTERVAL, ParseTreeVisitor
+import typing as t
+
+from antlr4.tree.Tree import ParseTree, ParseTreeListener, ParseTreeVisitor, RuleNode, INVALID_INTERVAL
 from antlr4.tree.Trees import Trees
 
-# need forward declarations
-RuleContext = None
-Parser = None
+if t.TYPE_CHECKING:
+    from antlr4.Parser import Parser
+
 
 class RuleContext(RuleNode):
     __slots__ = ('parentCtx', 'invokingState')
-    EMPTY = None
+    EMPTY: t.Optional['RuleContext'] = None
 
-    def __init__(self, parent:RuleContext=None, invokingState:int=-1):
+    def __init__(self, parent: t.Optional['RuleContext'] = None, invokingState: int = -1):
         super().__init__()
         # What context invoked this rule?
         self.parentCtx = parent
@@ -45,10 +47,9 @@ class RuleContext(RuleNode):
         #  If parent is null, this should be -1.
         self.invokingState = invokingState
 
-
     def depth(self):
         n = 0
-        p = self
+        p: t.Optional['RuleContext'] = self
         while p is not None:
             p = p.parentCtx
             n += 1
@@ -61,7 +62,7 @@ class RuleContext(RuleNode):
 
     # satisfy the ParseTree / SyntaxTree interface
 
-    def getSourceInterval(self):
+    def getSourceInterval(self) -> t.Tuple[t.Optional[int], t.Optional[int]]:
         return INVALID_INTERVAL
 
     def getRuleContext(self):
@@ -69,6 +70,10 @@ class RuleContext(RuleNode):
 
     def getPayload(self):
         return self
+
+    def enterRule(self, listener: 'ParseTreeListener') -> None: ...
+
+    def exitRule(self, listener: 'ParseTreeListener') -> None: ...
 
    # Return the combined text of all child nodes. This method only considers
     #  tokens which have been added to the parse tree.
@@ -102,20 +107,20 @@ class RuleContext(RuleNode):
     # trees that don't need it.  Create
     # a subclass of ParserRuleContext with backing field and set
     # option contextSuperClass.
-    def setAltNumber(self, altNumber:int):
+    def setAltNumber(self, altNumber: int):
         pass
 
-    def getChild(self, i:int):
+    def getChild(self, i: int) -> t.Optional['ParseTree']:
         return None
 
-    def getChildCount(self):
+    def getChildCount(self) -> int:
         return 0
 
     def getChildren(self):
-        for c in []:
+        for c in t.cast(t.Iterable['ParseTree'], []):
             yield c
 
-    def accept(self, visitor:ParseTreeVisitor):
+    def accept(self, visitor: ParseTreeVisitor):
         return visitor.visitChildren(self)
 
    # # Call this method to view a parse tree in a dialog box visually.#/
@@ -173,8 +178,8 @@ class RuleContext(RuleNode):
    # Print out a whole tree, not just a node, in LISP format
    #  (root child1 .. childN). Print just a node if this is a leaf.
    #
-    def toStringTree(self, ruleNames:list=None, recog:Parser=None):
-        return Trees.toStringTree(self, ruleNames=ruleNames, recog=recog)
+    def toStringTree(self, ruleNames: t.Optional[t.List[str]] = None, recog: t.Optional['Parser'] = None):
+        return Trees.toStringTree(self, ruleNames=ruleNames or [], recog=recog)
    #  }
    #
    #  @Override
@@ -205,7 +210,7 @@ class RuleContext(RuleNode):
    #      return toString(ruleNamesList, stop);
    #  }
 
-    def toString(self, ruleNames:list, stop:RuleContext)->str:
+    def toString(self, ruleNames: t.Optional[t.List[str]], stop: t.Optional['RuleContext']) -> str:
         with StringIO() as buf:
             p = self
             buf.write("[")

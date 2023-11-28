@@ -4,6 +4,7 @@
 #/
 
 from enum import IntEnum
+import typing
 
 # Represents the type of recognizer an ATN applies to.
 
@@ -13,5 +14,5 @@ class ATNType(IntEnum):
     PARSER = 1
 
     @classmethod
-    def fromOrdinal(cls, i:int):
-        return cls._value2member_map_[i]
+    def fromOrdinal(cls, i: int):
+        return typing.cast('ATNType', cls._value2member_map_[i])

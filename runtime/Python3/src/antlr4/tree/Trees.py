@@ -10,9 +10,10 @@ from io import StringIO
 from antlr4.Token import Token
 from antlr4.Utils import escapeWhitespace
 from antlr4.tree.Tree import RuleNode, ErrorNode, TerminalNode, Tree, ParseTree
+import typing as t
+if t.TYPE_CHECKING:
+    from antlr4.Parser import Parser
 
-# need forward declaration
-Parser  = None
 
 class Trees(object):
 
@@ -20,92 +21,92 @@ class Trees(object):
     #  node payloads to get the text for the nodes.  Detect
     #  parse trees and extract data appropriately.
     @classmethod
-    def toStringTree(cls, t:Tree, ruleNames:list=None, recog:Parser=None):
+    def toStringTree(cls, tree: Tree, ruleNames: t.Optional[t.List[str]] = None, recog: t.Optional['Parser'] = None):
         if recog is not None:
             ruleNames = recog.ruleNames
-        s = escapeWhitespace(cls.getNodeText(t, ruleNames), False)
-        if t.getChildCount()==0:
+        s = escapeWhitespace(cls.getNodeText(tree, ruleNames), False)
+        if tree.getChildCount() == 0:
             return s
         with StringIO() as buf:
             buf.write("(")
             buf.write(s)
             buf.write(' ')
-            for i in range(0, t.getChildCount()):
+            for i in range(0, tree.getChildCount()):
                 if i > 0:
                     buf.write(' ')
-                buf.write(cls.toStringTree(t.getChild(i), ruleNames))
+                buf.write(cls.toStringTree(t.cast(Tree, tree.getChild(i)), ruleNames))
             buf.write(")")
             return buf.getvalue()
 
     @classmethod
-    def getNodeText(cls, t:Tree, ruleNames:list=None, recog:Parser=None):
+    def getNodeText(cls, tree: Tree, ruleNames: t.Optional[t.List[str]] = None, recog: t.Optional['Parser'] = None):
         if recog is not None:
             ruleNames = recog.ruleNames
         if ruleNames is not None:
-            if isinstance(t, RuleNode):
-                if t.getAltNumber()!=0: # should use ATN.INVALID_ALT_NUMBER but won't compile
-                    return ruleNames[t.getRuleIndex()]+":"+str(t.getAltNumber())
-                return ruleNames[t.getRuleIndex()]
-            elif isinstance( t, ErrorNode):
-                return str(t)
-            elif isinstance(t, TerminalNode):
-                if t.symbol is not None:
-                    return t.symbol.text
+            if isinstance(tree, RuleNode):
+                if tree.getAltNumber() != 0: # should use ATN.INVALID_ALT_NUMBER but won't compile
+                    return ruleNames[tree.getRuleIndex()] + ":" + str(tree.getAltNumber())
+                return ruleNames[tree.getRuleIndex()]
+            elif isinstance(tree, ErrorNode):
+                return str(tree)
+            elif isinstance(tree, TerminalNode):
+                if tree.symbol is not None:
+                    return tree.symbol.text or ''
         # no recog for rule names
-        payload = t.getPayload()
-        if isinstance(payload, Token ):
-            return payload.text
-        return str(t.getPayload())
+        payload = tree.getPayload()
+        if isinstance(payload, Token):
+            return payload.text or ''
+        return str(tree.getPayload())
 
 
     # Return ordered list of all children of this node
     @classmethod
-    def getChildren(cls, t:Tree):
-        return [ t.getChild(i) for i in range(0, t.getChildCount()) ]
+    def getChildren(cls, tree: Tree):
+        return [tree.getChild(i) for i in range(0, tree.getChildCount())]
 
     # Return a list of all ancestors of this node.  The first node of
     #  list is the root and the last is the parent of this node.
     #
     @classmethod
-    def getAncestors(cls, t:Tree):
-        ancestors = []
-        t = t.getParent()
-        while t is not None:
-            ancestors.insert(0, t) # insert at start
-            t = t.getParent()
+    def getAncestors(cls, tree: Tree):
+        ancestors: t.List[Tree] = []
+        curr_tree = tree.getParent()
+        while curr_tree is not None:
+            ancestors.insert(0, curr_tree) # insert at start
+            curr_tree = curr_tree.getParent()
         return ancestors
 
     @classmethod
-    def findAllTokenNodes(cls, t:ParseTree, ttype:int):
-        return cls.findAllNodes(t, ttype, True)
+    def findAllTokenNodes(cls, tree: ParseTree, ttype: int):
+        return cls.findAllNodes(tree, ttype, True)
 
     @classmethod
-    def findAllRuleNodes(cls, t:ParseTree, ruleIndex:int):
-        return cls.findAllNodes(t, ruleIndex, False)
+    def findAllRuleNodes(cls, tree: ParseTree, ruleIndex: int):
+        return cls.findAllNodes(tree, ruleIndex, False)
 
     @classmethod
-    def findAllNodes(cls, t:ParseTree, index:int, findTokens:bool):
-        nodes = []
-        cls._findAllNodes(t, index, findTokens, nodes)
+    def findAllNodes(cls, tree: ParseTree, index: int, findTokens: bool):
+        nodes: t.List[Tree] = []
+        cls._findAllNodes(tree, index, findTokens, nodes)
         return nodes
 
     @classmethod
-    def _findAllNodes(cls, t:ParseTree, index:int, findTokens:bool, nodes:list):
+    def _findAllNodes(cls, tree: ParseTree, index: int, findTokens: bool, nodes: t.List[Tree]):
         from antlr4.ParserRuleContext import ParserRuleContext
         # check this node (the root) first
-        if findTokens and isinstance(t, TerminalNode):
-            if t.symbol.type==index:
-                nodes.append(t)
-        elif not findTokens and isinstance(t, ParserRuleContext):
-            if t.ruleIndex == index:
-                nodes.append(t)
+        if findTokens and isinstance(tree, TerminalNode):
+            if tree.symbol and (tree.symbol.type == index):
+                nodes.append(tree)
+        elif not findTokens and isinstance(tree, ParserRuleContext):
+            if tree.ruleIndex == index:
+                nodes.append(tree)
         # check children
-        for i in range(0, t.getChildCount()):
-            cls._findAllNodes(t.getChild(i), index, findTokens, nodes)
+        for i in range(0, tree.getChildCount()):
+            cls._findAllNodes(t.cast(ParseTree, tree.getChild(i)), index, findTokens, nodes)
 
     @classmethod
-    def descendants(cls, t:ParseTree):
-        nodes = [t]
-        for i in range(0, t.getChildCount()):
-            nodes.extend(cls.descendants(t.getChild(i)))
+    def descendants(cls, tree: ParseTree):
+        nodes = [tree]
+        for i in range(0, tree.getChildCount()):
+            nodes.extend(cls.descendants(t.cast(ParseTree, tree.getChild(i))))
         return nodes

@@ -3,6 +3,8 @@
 # Use of this file is governed by the BSD 3-clause license that
 # can be found in the LICENSE.txt file in the project root.
 #/
+import typing as t
+
 from antlr4.IntervalSet import IntervalSet
 from antlr4.Token import Token
 from antlr4.PredictionContext import PredictionContext, SingletonPredictionContext, PredictionContextFromRuleContext
@@ -13,7 +15,7 @@ from antlr4.atn.ATNState import ATNState, RuleStopState
 from antlr4.atn.Transition import WildcardTransition, NotSetTransition, AbstractPredicateTransition, RuleTransition
 
 
-class LL1Analyzer (object):
+class LL1Analyzer(object):
     __slots__ = 'atn'
 
     #* Special value added to the lookahead sets to indicate that we hit
@@ -21,7 +23,7 @@ class LL1Analyzer (object):
     #/
     HIT_PRED = Token.INVALID_TYPE
 
-    def __init__(self, atn:ATN):
+    def __init__(self, atn: ATN):
         self.atn = atn
 
     #*
@@ -34,21 +36,21 @@ class LL1Analyzer (object):
     # @param s the ATN state
     # @return the expected symbols for each outgoing transition of {@code s}.
     #/
-    def getDecisionLookahead(self, s:ATNState):
+    def getDecisionLookahead(self, s: t.Optional[ATNState]):
         if s is None:
             return None
 
         count = len(s.transitions)
-        look = [] * count
+        look: t.List[t.Optional[IntervalSet]] = [] * count
         for alt in range(0, count):
-            look[alt] = set()
-            lookBusy = set()
+            look[alt] = t.cast(IntervalSet, set())
+            lookBusy: t.Set[ATNConfig] = set()
             seeThruPreds = False # fail to get lookahead upon pred
             self._LOOK(s.transition(alt).target, None, PredictionContext.EMPTY,
                   look[alt], lookBusy, set(), seeThruPreds, False)
             # Wipe out lookahead for this alternative if we found nothing
             # or we had a predicate when we !seeThruPreds
-            if len(look[alt])==0 or self.HIT_PRED in look[alt]:
+            if len(look[alt]) == 0 or self.HIT_PRED in look[alt]:
                 look[alt] = None
         return look
 
@@ -70,7 +72,7 @@ class LL1Analyzer (object):
     # @return The set of tokens that can follow {@code s} in the ATN in the
     # specified {@code ctx}.
     #/
-    def LOOK(self, s:ATNState, stopState:ATNState=None, ctx:RuleContext=None):
+    def LOOK(self, s: ATNState, stopState: t.Optional[ATNState] = None, ctx: t.Optional[RuleContext] = None):
         r = IntervalSet()
         seeThruPreds = True # ignore preds; get all lookahead
         lookContext = PredictionContextFromRuleContext(s.atn, ctx) if ctx is not None else None
@@ -107,8 +109,8 @@ class LL1Analyzer (object):
     # outermost context is reached. This parameter has no effect if {@code ctx}
     # is {@code null}.
     #/
-    def _LOOK(self, s:ATNState, stopState:ATNState , ctx:PredictionContext, look:IntervalSet, lookBusy:set,
-                     calledRuleStack:set, seeThruPreds:bool, addEOF:bool):
+    def _LOOK(self, s: ATNState, stopState: t.Optional[ATNState], ctx: t.Optional[PredictionContext], look: IntervalSet,
+              lookBusy: t.Set[ATNConfig], calledRuleStack: t.Set[int], seeThruPreds: bool, addEOF: bool):
         c = ATNConfig(s, 0, ctx)
 
         if c in lookBusy:
@@ -123,7 +125,7 @@ class LL1Analyzer (object):
                 look.addOne(Token.EOF)
                 return
 
-        if isinstance(s, RuleStopState ):
+        if isinstance(s, RuleStopState):
             if ctx is None:
                 look.addOne(Token.EPSILON)
                 return

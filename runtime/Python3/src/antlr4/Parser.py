@@ -7,6 +7,8 @@ if sys.version_info[1] > 5:
     from typing import TextIO
 else:
     from typing.io import TextIO
+import typing as t
+
 from antlr4.BufferedTokenStream import TokenStream
 from antlr4.CommonTokenFactory import TokenFactory
 from antlr4.error.ErrorStrategy import DefaultErrorStrategy
@@ -22,13 +24,14 @@ from antlr4.error.Errors import UnsupportedOperationException, RecognitionExcept
 from antlr4.tree.ParseTreePatternMatcher import ParseTreePatternMatcher
 from antlr4.tree.Tree import ParseTreeListener, TerminalNode, ErrorNode
 
+
 class TraceListener(ParseTreeListener):
     __slots__ = '_parser'
 
-    def __init__(self, parser):
+    def __init__(self, parser: 'Parser'):
         self._parser = parser
 
-    def enterEveryRule(self, ctx):
+    def enterEveryRule(self, ctx: ParserRuleContext):
         print("enter   " + self._parser.ruleNames[ctx.getRuleIndex()] + ", LT(1)=" + self._parser._input.LT(1).text, file=self._parser._output)
 
     def visitTerminal(self, node):
@@ -56,8 +59,9 @@ class Parser (Recognizer):
     # @see ATNDeserializationOptions#isGenerateRuleBypassTransitions()
     #
     bypassAltsAtnCache = dict()
+    ruleNames: t.List[str]
 
-    def __init__(self, input:TokenStream, output:TextIO = sys.stdout):
+    def __init__(self, input: TokenStream, output: TextIO = sys.stdout):
         super().__init__()
         # The input stream.
         self._input = None
@@ -294,14 +298,14 @@ class Parser (Recognizer):
     def getInputStream(self):
         return self.getTokenStream()
 
-    def setInputStream(self, input:InputStream):
-        self.setTokenStream(input)
+    def setInputStream(self, input: InputStream):
+        self.setTokenStream(t.cast(TokenStream, input))
 
     def getTokenStream(self):
         return self._input
 
     # Set the token stream and reset the parser.#
-    def setTokenStream(self, input:TokenStream):
+    def setTokenStream(self, input: TokenStream):
         self._input = None
         self.reset()
         self._input = input

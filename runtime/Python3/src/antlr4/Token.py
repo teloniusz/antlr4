@@ -7,9 +7,16 @@
 # (so we can ignore tabs), token channel, index, and source from which
 # we obtained this token.
 from io import StringIO
+import typing as t
+
+if t.TYPE_CHECKING:
+    from antlr4.Lexer import TokenSource
+    from antlr4 import InputStream
 
 
-class Token (object):
+TokenSourceType = t.Tuple[t.Optional['TokenSource'], t.Optional['InputStream']]
+
+class Token(object):
     __slots__ = ('source', 'type', 'channel', 'start', 'stop', 'tokenIndex', 'line', 'column', '_text')
 
     INVALID_TYPE = 0
@@ -34,15 +41,15 @@ class Token (object):
     HIDDEN_CHANNEL = 1
 
     def __init__(self):
-        self.source = None
-        self.type = None # token type of the token
-        self.channel = None # The parser ignores everything not on DEFAULT_CHANNEL
-        self.start = None # optional; return -1 if not implemented.
-        self.stop = None  # optional; return -1 if not implemented.
-        self.tokenIndex = None # from 0..n-1 of the token object in the input stream
-        self.line = None # line=1..n of the 1st character
-        self.column = None # beginning of the line at which it occurs, 0..n-1
-        self._text = None # text of the token.
+        self.source: TokenSourceType = (None, None)
+        self.type: t.Optional[int] = None # token type of the token
+        self.channel: int = 0 # The parser ignores everything not on DEFAULT_CHANNEL
+        self.start: int = -1 # optional; return -1 if not implemented.
+        self.stop: int = -1  # optional; return -1 if not implemented.
+        self.tokenIndex: int = 0 # from 0..n-1 of the token object in the input stream
+        self.line: t.Optional[int] = None # line=1..n of the 1st character
+        self.column: int = -1 # beginning of the line at which it occurs, 0..n-1
+        self._text: t.Optional[str] = None # text of the token.
 
     @property
     def text(self):
@@ -57,9 +64,8 @@ class Token (object):
     # of the token.
 
     @text.setter
-    def text(self, text:str):
+    def text(self, text: str):
         self._text = text
-
 
     def getTokenSource(self):
         return self.source[0]
@@ -73,7 +79,8 @@ class CommonToken(Token):
     # {@link #source} for tokens that do not have a source.
     EMPTY_SOURCE = (None, None)
 
-    def __init__(self, source:tuple = EMPTY_SOURCE, type:int = None, channel:int=Token.DEFAULT_CHANNEL, start:int=-1, stop:int=-1):
+    def __init__(self, source: TokenSourceType = EMPTY_SOURCE, type: t.Optional[int] = None,
+                 channel: int = Token.DEFAULT_CHANNEL, start: int = -1, stop: int = -1):
         super().__init__()
         self.source = source
         self.type = type
@@ -121,7 +128,7 @@ class CommonToken(Token):
             return "<EOF>"
 
     @text.setter
-    def text(self, text:str):
+    def text(self, text: t.Optional[str]):
         self._text = text
 
     def __str__(self):

@@ -2,8 +2,7 @@
 # Use of this file is governed by the BSD 3-clause license that
 # can be found in the LICENSE.txt file in the project root.
 #/
-from io import StringIO
-from typing import Callable
+import typing as t
 from antlr4.Token import Token
 from antlr4.atn.ATN import ATN
 from antlr4.atn.ATNType import ATNType
@@ -14,15 +13,16 @@ from antlr4.atn.ATNDeserializationOptions import ATNDeserializationOptions
 
 SERIALIZED_VERSION = 4
 
-class ATNDeserializer (object):
+
+class ATNDeserializer(object):
     __slots__ = ('deserializationOptions', 'data', 'pos')
 
-    def __init__(self, options : ATNDeserializationOptions = None):
+    def __init__(self, options: t.Optional[ATNDeserializationOptions] = None):
         if options is None:
             options = ATNDeserializationOptions.defaultOptions
         self.deserializationOptions = options
 
-    def deserialize(self, data : [int]):
+    def deserialize(self, data: t.List[int]):
         self.data = data
         self.pos = 0
         self.checkVersion()
@@ -55,9 +55,9 @@ class ATNDeserializer (object):
         maxTokenType = self.readInt()
         return ATN(grammarType, maxTokenType)
 
-    def readStates(self, atn:ATN):
-        loopBackStateNumbers = []
-        endStateNumbers = []
+    def readStates(self, atn: ATN):
+        loopBackStateNumbers: t.List[t.Tuple[ATNState, int]] = []
+        endStateNumbers: t.List[t.Tuple[ATNState, int]] = []
         nstates = self.readInt()
         for i in range(0, nstates):
             stype = self.readInt()
@@ -93,7 +93,7 @@ class ATNDeserializer (object):
             stateNumber = self.readInt()
             atn.states[stateNumber].isPrecedenceRule = True
 
-    def readRules(self, atn:ATN):
+    def readRules(self, atn: ATN):
         nrules = self.readInt()
         if atn.grammarType == ATNType.LEXER:
             atn.ruleToTokenType = [0] * nrules
@@ -114,13 +114,13 @@ class ATNDeserializer (object):
             atn.ruleToStopState[state.ruleIndex] = state
             atn.ruleToStartState[state.ruleIndex].stopState = state
 
-    def readModes(self, atn:ATN):
+    def readModes(self, atn: ATN):
         nmodes = self.readInt()
         for i in range(0, nmodes):
             s = self.readInt()
             atn.modeToStartState.append(atn.states[s])
 
-    def readSets(self, atn:ATN, sets:list):
+    def readSets(self, atn: ATN, sets: t.List[IntervalSet]):
         m = self.readInt()
         for i in range(0, m):
             iset = IntervalSet()
@@ -134,7 +134,7 @@ class ATNDeserializer (object):
                 i2 = self.readInt()
                 iset.addRange(range(i1, i2 + 1)) # range upper limit is exclusive
 
-    def readEdges(self, atn:ATN, sets:list):
+    def readEdges(self, atn: ATN, sets: t.List[IntervalSet]):
         nedges = self.readInt()
         for i in range(0, nedges):
             src = self.readInt()
@@ -238,9 +238,7 @@ class ATNDeserializer (object):
 
             if excludeTransition is None:
                 raise Exception("Couldn't identify final state of the precedence rule prefix section.")
-
         else:
-
             endState = atn.ruleToStopState[idx]
 
         # all non-excluded transitions that currently target end state need to target blockEnd instead
@@ -267,8 +265,7 @@ class ATNDeserializer (object):
         matchState.addTransition(AtomTransition(bypassStop, atn.ruleToTokenType[idx]))
         bypassStart.addTransition(EpsilonTransition(matchState))
 
-
-    def stateIsEndStateFor(self, state:ATNState, idx:int):
+    def stateIsEndStateFor(self, state: ATNState, idx: int):
         if state.ruleIndex != idx:
             return None
         if not isinstance(state, StarLoopEntryState):
@@ -292,7 +289,7 @@ class ATNDeserializer (object):
     #
     # @param atn The ATN.
     #
-    def markPrecedenceDecisions(self, atn:ATN):
+    def markPrecedenceDecisions(self, atn: ATN):
         for state in atn.states:
             if not isinstance(state, StarLoopEntryState):
                 continue
@@ -308,7 +305,7 @@ class ATNDeserializer (object):
                             isinstance(maybeLoopEndState.transitions[0].target, RuleStopState):
                         state.isPrecedenceDecision = True
 
-    def verifyATN(self, atn:ATN):
+    def verifyATN(self, atn: ATN):
         if not self.deserializationOptions.verifyATN:
             return
         # verify assumptions
@@ -355,7 +352,7 @@ class ATNDeserializer (object):
             else:
                 self.checkCondition(len(state.transitions) <= 1 or isinstance(state, RuleStopState))
 
-    def checkCondition(self, condition:bool, message=None):
+    def checkCondition(self, condition: bool, message: t.Optional[str] = None):
         if not condition:
             if message is None:
                 message = "IllegalState"
@@ -366,52 +363,57 @@ class ATNDeserializer (object):
         self.pos += 1
         return i
 
-    edgeFactories = [ lambda args : None,
-                      lambda atn, src, trg, arg1, arg2, arg3, sets, target : EpsilonTransition(target),
-                      lambda atn, src, trg, arg1, arg2, arg3, sets, target : \
-                        RangeTransition(target, Token.EOF, arg2) if arg3 != 0 else RangeTransition(target, arg1, arg2),
-                      lambda atn, src, trg, arg1, arg2, arg3, sets, target : \
-                        RuleTransition(atn.states[arg1], arg2, arg3, target),
-                      lambda atn, src, trg, arg1, arg2, arg3, sets, target : \
-                        PredicateTransition(target, arg1, arg2, arg3 != 0),
-                      lambda atn, src, trg, arg1, arg2, arg3, sets, target : \
-                        AtomTransition(target, Token.EOF) if arg3 != 0 else AtomTransition(target, arg1),
-                      lambda atn, src, trg, arg1, arg2, arg3, sets, target : \
-                        ActionTransition(target, arg1, arg2, arg3 != 0),
-                      lambda atn, src, trg, arg1, arg2, arg3, sets, target : \
-                        SetTransition(target, sets[arg1]),
-                      lambda atn, src, trg, arg1, arg2, arg3, sets, target : \
-                        NotSetTransition(target, sets[arg1]),
-                      lambda atn, src, trg, arg1, arg2, arg3, sets, target : \
-                        WildcardTransition(target),
-                      lambda atn, src, trg, arg1, arg2, arg3, sets, target : \
-                        PrecedencePredicateTransition(target, arg1)
-                      ]
+    edgeFactories: t.List[t.Union[
+        t.Callable[[t.Any], None],
+        t.Callable[[ATN, int, int, int, int, int, t.List[IntervalSet], ATNState], Transition]
+    ]] = [
+        lambda args: None,
+        lambda atn, src, trg, arg1, arg2, arg3, sets, target: EpsilonTransition(target),
+        lambda atn, src, trg, arg1, arg2, arg3, sets, target: \
+            RangeTransition(target, Token.EOF, arg2) if arg3 != 0 else RangeTransition(target, arg1, arg2),
+        lambda atn, src, trg, arg1, arg2, arg3, sets, target: \
+            RuleTransition(atn.states[arg1], arg2, arg3, target),
+        lambda atn, src, trg, arg1, arg2, arg3, sets, target: \
+            PredicateTransition(target, arg1, arg2, arg3 != 0),
+        lambda atn, src, trg, arg1, arg2, arg3, sets, target: \
+            AtomTransition(target, Token.EOF) if arg3 != 0 else AtomTransition(target, arg1),
+        lambda atn, src, trg, arg1, arg2, arg3, sets, target: \
+            ActionTransition(target, arg1, arg2, arg3 != 0),
+        lambda atn, src, trg, arg1, arg2, arg3, sets, target: \
+            SetTransition(target, sets[arg1]),
+        lambda atn, src, trg, arg1, arg2, arg3, sets, target: \
+            NotSetTransition(target, sets[arg1]),
+        lambda atn, src, trg, arg1, arg2, arg3, sets, target: \
+            WildcardTransition(target),
+        lambda atn, src, trg, arg1, arg2, arg3, sets, target: \
+            PrecedencePredicateTransition(target, arg1)
+    ]
 
-    def edgeFactory(self, atn:ATN, type:int, src:int, trg:int, arg1:int, arg2:int, arg3:int, sets:list):
+    def edgeFactory(self, atn: ATN, type: int, src: int, trg: int, arg1: int, arg2: int, arg3: int, sets: t.List[IntervalSet]):
         target = atn.states[trg]
         if type > len(self.edgeFactories) or self.edgeFactories[type] is None:
             raise Exception("The specified transition type: " + str(type) + " is not valid.")
         else:
             return self.edgeFactories[type](atn, src, trg, arg1, arg2, arg3, sets, target)
 
-    stateFactories = [  lambda : None,
-                        lambda : BasicState(),
-                        lambda : RuleStartState(),
-                        lambda : BasicBlockStartState(),
-                        lambda : PlusBlockStartState(),
-                        lambda : StarBlockStartState(),
-                        lambda : TokensStartState(),
-                        lambda : RuleStopState(),
-                        lambda : BlockEndState(),
-                        lambda : StarLoopbackState(),
-                        lambda : StarLoopEntryState(),
-                        lambda : PlusLoopbackState(),
-                        lambda : LoopEndState()
-                    ]
+    stateFactories: t.List[t.Callable[[], t.Optional[ATNState]]] = [
+        lambda: None,
+        lambda: BasicState(),
+        lambda: RuleStartState(),
+        lambda: BasicBlockStartState(),
+        lambda: PlusBlockStartState(),
+        lambda: StarBlockStartState(),
+        lambda: TokensStartState(),
+        lambda: RuleStopState(),
+        lambda: BlockEndState(),
+        lambda: StarLoopbackState(),
+        lambda: StarLoopEntryState(),
+        lambda: PlusLoopbackState(),
+        lambda: LoopEndState()
+    ]
 
-    def stateFactory(self, type:int, ruleIndex:int):
-        if type> len(self.stateFactories) or self.stateFactories[type] is None:
+    def stateFactory(self, type: int, ruleIndex: int):
+        if type > len(self.stateFactories) or self.stateFactories[type] is None:
             raise Exception("The specified state type " + str(type) + " is not valid.")
         else:
             s = self.stateFactories[type]()
@@ -428,18 +430,18 @@ class ATNDeserializer (object):
     SKIP = 6        #The type of a {@link LexerSkipAction} action.
     TYPE = 7        #The type of a {@link LexerTypeAction} action.
 
-    actionFactories = [ lambda data1, data2: LexerChannelAction(data1),
-                        lambda data1, data2: LexerCustomAction(data1, data2),
-                        lambda data1, data2: LexerModeAction(data1),
-                        lambda data1, data2: LexerMoreAction.INSTANCE,
-                        lambda data1, data2: LexerPopModeAction.INSTANCE,
-                        lambda data1, data2: LexerPushModeAction(data1),
-                        lambda data1, data2: LexerSkipAction.INSTANCE,
-                        lambda data1, data2: LexerTypeAction(data1)
-                      ]
+    actionFactories: t.List[t.Callable[[int, int], 'LexerAction']] = [
+        lambda data1, data2: LexerChannelAction(data1),
+        lambda data1, data2: LexerCustomAction(data1, data2),
+        lambda data1, data2: LexerModeAction(data1),
+        lambda data1, data2: LexerMoreAction.INSTANCE,
+        lambda data1, data2: LexerPopModeAction.INSTANCE,
+        lambda data1, data2: LexerPushModeAction(data1),
+        lambda data1, data2: LexerSkipAction.INSTANCE,
+        lambda data1, data2: LexerTypeAction(data1)
+    ]
 
     def lexerActionFactory(self, type:int, data1:int, data2:int):
-
         if type > len(self.actionFactories) or self.actionFactories[type] is None:
             raise Exception("The specified lexer action type " + str(type) + " is not valid.")
         else:
